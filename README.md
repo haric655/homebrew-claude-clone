@@ -16,14 +16,11 @@ The clone is a separate app (`/Applications/<Name>.app`) with its own bundle ID 
 
 ```sh
 brew tap haric655/claude-clone
+brew trust haric655/claude-clone
 brew install claude-clone
 ```
 
-The tap repo is private, so git must be able to authenticate to GitHub. Run `gh auth setup-git` once, or tap with an SSH URL instead:
-
-```sh
-brew tap haric655/claude-clone git@github.com:haric655/homebrew-claude-clone.git
-```
+Homebrew 7 refuses formulae from third-party taps until you trust them, hence `brew trust`.
 
 Latest `main` instead of the tagged release:
 
