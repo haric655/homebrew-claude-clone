@@ -1,29 +1,10 @@
 <div align="center">
 
-<img src="assets/icon.png" width="128" alt="claude-clone logo">
+<img src="assets/icon.png" width="128" alt="Claude Clone logo">
 
-<h1>claude-clone</h1>
-
-<p>Run two Claude Desktop accounts side by side on macOS.</p>
-
-<p>
-  <a href="https://github.com/haric655/homebrew-claude-clone/actions/workflows/ci.yml"><img src="https://github.com/haric655/homebrew-claude-clone/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/haric655/homebrew-claude-clone/releases"><img src="https://img.shields.io/github/v/release/haric655/homebrew-claude-clone" alt="Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/haric655/homebrew-claude-clone" alt="License"></a>
-  <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform: macOS">
-</p>
-
-<p>
-  <a href="#install">Install</a> ·
-  <a href="#usage">Usage</a> ·
-  <a href="#how-it-works">How it works</a> ·
-  <a href="#troubleshooting">Troubleshooting</a> ·
-  <a href="#faq">FAQ</a>
-</p>
+<h1>Claude Clone</h1>
 
 </div>
-
----
 
 claude-clone makes a second, isolated copy of Claude Desktop, so you can stay signed in to two accounts at once (for example work and personal).
 
