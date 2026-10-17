@@ -3,7 +3,7 @@ class ClaudeClone < Formula
   homepage "https://github.com/haric655/homebrew-claude-clone"
   url "https://github.com/haric655/homebrew-claude-clone.git",
       tag:      "v1.0.0",
-      revision: "REPLACE_WITH_COMMIT_SHA"
+      revision: "47e18db9ead52eb540bb427ac2fab11e9dee292b"
   license "MIT"
   head "https://github.com/haric655/homebrew-claude-clone.git", branch: "main"
 
