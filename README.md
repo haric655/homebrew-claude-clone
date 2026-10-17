@@ -75,6 +75,7 @@ claude-clone --name "Claude Work" --label - --yes
 | `--label LABEL` | Icon label (`-` keeps the original icon) | name without "Claude" |
 | `--color HEX` | Badge color, with or without `#` | `#1F2937` |
 | `--source PATH` | App to copy | `/Applications/Claude.app` |
+| `--update` | Rebuild existing clones from the current Claude.app, keeping their label, color and data; with `--name`, only that clone | |
 | `--yes` | Skip the confirmation | |
 | `--version` | Print the version | |
 | `--help` | Show help | |
@@ -86,15 +87,31 @@ Running it again with the same name replaces the existing clone (only if it is a
 ## How it works
 
 1. Copies the app with `ditto`.
-2. Edits `Info.plist`: sets the display name and the bundle ID `com.anthropic.claude.clone.<slug>`. `CFBundleName` is kept, because Electron locates its helper apps by it.
+2. Edits `Info.plist`: sets the display name and the bundle ID `com.anthropic.claude.clone.<slug>`. `CFBundleName` is kept, because Electron locates its helper apps by it. The label and color are stored there too (`ClaudeCloneLabel`, `ClaudeCloneColor`), so `--update` and re-runs reuse them.
 3. Draws the icon badge with JXA/AppKit, then builds the icon with `sips` and `iconutil`.
 4. Replaces the executable with a wrapper that adds `--user-data-dir`, giving the clone its own data folder.
-5. Re-signs ad-hoc, inside-out (never `codesign --deep`), and verifies the signature.
-6. Refreshes Launch Services and the Dock.
+5. Re-signs ad-hoc, inside-out (never `codesign --deep`), with a fixed designated requirement (`identifier "com.anthropic.claude.clone.<slug>"`) so macOS permissions survive updates, and verifies the signature.
+6. Everything above is built in `/Applications/.<Name>.app.new` next to the clone; only after it is signed and verified is the old clone replaced. On any failure the old clone is left untouched.
+7. Refreshes Launch Services and the Dock.
 
 ## After a Claude update
 
-The clone is a copy of the old version. Re-run the same command to refresh it. Account data in `~/Library/Application Support/<slug>` is kept.
+The clone is a copy of the old version. Refresh all clones with one command:
+
+```sh
+claude-clone --update
+```
+
+Or only one:
+
+```sh
+claude-clone --update --name "Claude Work"
+```
+
+Data, sign-in, label and color are kept. Quit the clones first.
+
+> [!IMPORTANT]
+> macOS may ask once for access to "Claude Safe Storage" in the keychain when a clone starts. Click **Always Allow**. **Deny** signs the clone out.
 
 ## First sign-in
 
@@ -141,13 +158,15 @@ Or `touch "/Applications/<Name>.app"`.
 
 **macOS shows "access to data from other apps was blocked" for the clone.** The clone is ad-hoc signed, so macOS treats it as a different app than the original, and its app data protection may block access to other apps' data. The clone keeps working. You can review this in System Settings → Privacy & Security.
 
+**Keychain asks about “Claude Safe Storage” after an update.** Click **Always Allow**. If you clicked **Deny**, quit the clone, re-open it and allow, or sign in again.
+
 ## FAQ
 
 **Can I make more than two copies?** Yes. Use a different `--name` for each.
 
 **Is my data shared between copies?** No. Each copy has its own `--user-data-dir`.
 
-**Does it auto-update?** No. Claude's auto-update inside the clone may not work. Update the original, then re-run claude-clone.
+**Does it auto-update?** No. Claude's auto-update inside the clone may not work. Update the original, then run `claude-clone --update`.
 
 ## Disclaimer
 
