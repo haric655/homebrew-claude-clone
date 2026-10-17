@@ -15,14 +15,14 @@ The clone is a separate app (`/Applications/<Name>.app`) with its own bundle ID 
 ## Install
 
 ```sh
-brew tap haric655/tools
+brew tap haric655/claude-clone
 brew install claude-clone
 ```
 
 The tap repo is private, so git must be able to authenticate to GitHub. Run `gh auth setup-git` once, or tap with an SSH URL instead:
 
 ```sh
-brew tap haric655/tools git@github.com:haric655/homebrew-tools.git
+brew tap haric655/claude-clone git@github.com:haric655/homebrew-claude-clone.git
 ```
 
 Latest `main` instead of the tagged release:
@@ -84,7 +84,7 @@ Optionally delete `~/Library/Application Support/<slug>` by hand. This deletes t
 
 ## Troubleshooting
 
-**Signing errors, "app is damaged", "unable to find helper app".** Re-run claude-clone. It re-signs inside-out, without `--deep`. Check the result:
+**Signing errors, "app is damaged", "unable to find helper app".** Re-run claude-clone: it re-signs inside-out, without `--deep`. Do not edit `CFBundleName` in the clone: Electron finds its helper apps by that name. Check the result:
 
 ```sh
 codesign --verify --deep --strict "/Applications/<Name>.app"

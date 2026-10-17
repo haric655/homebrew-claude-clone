@@ -149,7 +149,8 @@ ditto "$SOURCE" "$TARGET"
 xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
 
 log "Updating Info.plist"
-plist_set CFBundleName "$NAME"
+# Keep CFBundleName: Electron looks up "Frameworks/<CFBundleName> Helper.app" and aborts with
+# "Unable to find helper app" if it changes. Display name + file name are what Finder/Dock show.
 plist_set CFBundleDisplayName "$NAME"
 plist_set CFBundleIdentifier "$BUNDLE_ID"
 
