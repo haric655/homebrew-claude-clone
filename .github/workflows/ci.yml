@@ -1,0 +1,14 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install shellcheck
+      - run: bash -n claude-clone.sh
+      - run: shellcheck claude-clone.sh
+      - run: brew style Formula/claude-clone.rb
+      - run: ./claude-clone.sh --version
