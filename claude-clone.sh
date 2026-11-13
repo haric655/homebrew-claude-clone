@@ -3,12 +3,14 @@
 # claude-clone: make a second, isolated copy of Claude Desktop with its own account.
 set -euo pipefail
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 SOURCE="/Applications/Claude.app"
 NAME=""
 LABEL=""
 COLOR=""
 CONFIG_DIR=""
+COPY=0
+COPIED=""
 LABEL_SET=0
 YES=0
 UPDATE=0
@@ -62,6 +64,31 @@ valid_config_dir() {
     -|"~/"?*|/?*) return 0 ;;
   esac
   return 1
+}
+
+# config_path DIR -> absolute path ("~/" expanded, trailing slash dropped)
+config_path() { local p="$1"; [[ "$p" != "~/"* ]] || p="$HOME/${p#"~/"}"; echo "${p%/}"; }
+
+# seed_config: copy shareable settings from ~/.claude into CONFIG_DIR, then point absolute
+# ~/.claude/ references in the copied text files at the new folder. Sets COPIED.
+seed_config() {
+  local src="$HOME/.claude" dst f th td tt
+  dst=$(config_path "$CONFIG_DIR")
+  mkdir -p "$dst"
+  COPIED=""
+  for f in CLAUDE.md CLAUDE.local.md agents skills commands output-styles hooks plugins local-marketplaces settings.json settings.local.json statusline-command.sh; do
+    [ -e "$src/$f" ] || continue
+    cp -Rc "$src/$f" "$dst/" 2>/dev/null || cp -R "$src/$f" "$dst/" # -c: APFS clone, not on other filesystems
+    COPIED="$COPIED $f"
+  done
+  # Under $HOME every form (/home/x, $HOME/x, ~/x) keeps its own spelling; elsewhere all become the absolute path.
+  th="$dst/" td="$dst/" tt="$dst/"
+  if [[ "$dst" == "$HOME/"* ]]; then td="\$HOME/${dst#"$HOME"/}/"; tt="~/${dst#"$HOME"/}/"; fi
+  # shellcheck disable=SC2016 # literal $HOME and perl's $ENV are meant
+  # ponytail: only the exact prefix ".claude/" is rewritten (not a bare "~/.claude" or paths in binary/JSON-escaped form); extend the perl map if such references show up
+  { grep -rlIF --null -e '.claude/' "$dst" || true; } |
+    FH="$HOME/.claude/" FD='$HOME/.claude/' FT='~/.claude/' TH="$th" TD="$td" TT="$tt" \
+      xargs -0 perl -pi -e 'BEGIN { %m = ($ENV{FH} => $ENV{TH}, $ENV{FD} => $ENV{TD}, $ENV{FT} => $ENV{TT}) } s/(\Q$ENV{FH}\E|\Q$ENV{FD}\E|\Q$ENV{FT}\E)/$m{$1}/g'
 }
 
 plist_set() { # key value
@@ -351,6 +378,12 @@ if [ -z "$CONFIG_DIR" ]; then
   done
 fi
 
+# New folder only: offer a real copy of ~/.claude (symlinks would keep the two configs coupled)
+if [ "$CONFIG_DIR" != "-" ] && [ ! -e "$(config_path "$CONFIG_DIR")" ] && [ -d "$HOME/.claude" ]; then
+  ask "Copy settings from ~/.claude (CLAUDE.md, skills, agents, plugins, settings)? [y/N]: " "N"
+  case "$REPLY" in y|Y|yes) COPY=1 ;; esac
+fi
+
 echo "App:       $TARGET"
 echo "Bundle ID: $BUNDLE_ID"
 echo "Data:      $DATA_DIR"
@@ -361,6 +394,7 @@ else
   echo "Color:     $COLOR"
 fi
 if [ "$CONFIG_DIR" = "-" ]; then echo "Config:    ~/.claude (shared)"; else echo "Config:    $CONFIG_DIR"; fi
+[ "$COPY" -eq 0 ] || echo "Copy:      settings from ~/.claude"
 if [ "$YES" -eq 0 ]; then
   read -r -p "Continue? [y/N] " REPLY || REPLY=""
   case "$REPLY" in y|Y|yes) ;; *) echo "Aborted."; exit 1 ;; esac
@@ -369,10 +403,15 @@ fi
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"; [ -z "$NEW" ] || rm -rf "$NEW"' EXIT
 build_clone
+[ "$COPY" -eq 0 ] || seed_config
 
 echo
 echo "Data folder: $DATA_DIR (created by Claude on first launch)"
-[ "$CONFIG_DIR" = "-" ] || echo "Claude Code settings: $CONFIG_DIR starts empty; link shared files if you want, e.g. ln -s ~/.claude/CLAUDE.md ~/.claude/skills $CONFIG_DIR/"
+if [ "$COPY" -eq 1 ]; then
+  echo "Claude Code settings: copied from ~/.claude to $CONFIG_DIR:$COPIED (paths rewritten). History and projects were not copied: split them per project yourself."
+elif [ "$CONFIG_DIR" != "-" ]; then
+  echo "Claude Code settings: $CONFIG_DIR starts empty (or already existed and was left as is)."
+fi
 echo "On first sign-in, close the original Claude: the claude:// login link opens whichever Claude is running."
 echo "After a Claude update, run: claude-clone --update"
 if [ "$WAS_CLONE" -eq 1 ]; then echo "$KEYCHAIN_NOTE"; fi

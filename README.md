@@ -54,9 +54,10 @@ $ claude-clone
 [2/4] Icon label [Personal] (- keeps the original icon):
 [3/4] Badge color (hex) [#1F2937]:
 [4/4] Claude Code settings folder [~/.claude-personal] (- shares ~/.claude):
+Copy settings from ~/.claude (CLAUDE.md, skills, agents, plugins, settings)? [y/N]:
 ```
 
-A summary is shown, then `Continue? [y/N]` asks for confirmation.
+The copy question appears only for a new clone whose settings folder does not exist yet, and only if `~/.claude` exists. A summary is shown, then `Continue? [y/N]` asks for confirmation.
 
 Non-interactive:
 
@@ -84,6 +85,14 @@ claude-clone --name "Claude Work" --label - --yes
 
 The last question sets where the clone keeps Claude Code settings (`CLAUDE_CONFIG_DIR`). The default is `~/.claude-<name>` (`~/.claude-personal` for “Claude Personal”), which starts empty; answer `-` to keep sharing `~/.claude`. Without a separate folder both accounts share MCP servers, plugins, memory and history. The choice is stored in `Info.plist` (`ClaudeCloneConfigDir`) and reused by `--update`; clones built before this option keep sharing `~/.claude` unless `~/.claude-<name>` already exists.
 
+### Copying settings
+
+If the settings folder is new, you are asked whether to seed it with a real copy of your `~/.claude` (default: no, so `--yes` copies nothing; there is no flag). If the folder already exists it is never touched and never asked about. After the clone is built, these entries are copied when present: `CLAUDE.md`, `CLAUDE.local.md`, `agents`, `skills`, `commands`, `output-styles`, `hooks`, `plugins`, `local-marketplaces`, `settings.json`, `settings.local.json`, `statusline-command.sh`. The copy uses APFS cloning where possible, so it is cheap.
+
+Not copied: `projects`, `history.jsonl`, `file-history`, `todos`, sessions, `.claude.json` and credentials. Existing session history therefore stays with the original; split it per project yourself if you need it.
+
+In the copied text files, absolute references to `~/.claude/` are pointed at the new folder, in all three spellings (`/Users/you/.claude/`, `$HOME/.claude/`, `~/.claude/`). This keeps plugins (`installed_plugins.json` and `known_marketplaces.json` store absolute paths), the `statusLine` command, `@~/.claude/...` imports and skill references working. Only the exact prefix `.claude/` is changed, so `.claude-other/` and relative `.claude/commands` are left alone. The copy is independent: later changes in either folder do not propagate.
+
 The slug is the name with spaces turned into hyphens and anything outside `[A-Za-z0-9-]` removed (`Claude Test` becomes `Claude-Test`).
 
 Running it again with the same name replaces the existing clone (only if it is a clone) and keeps the account data.
@@ -97,6 +106,13 @@ Running it again with the same name replaces the existing clone (only if it is a
 5. Re-signs ad-hoc, inside-out (never `codesign --deep`), with a fixed designated requirement (`identifier "com.anthropic.claude.clone.<slug>"`) so macOS permissions survive updates, and verifies the signature.
 6. Everything above is built in `/Applications/.<Name>.app.new` next to the clone; only after it is signed and verified is the old clone replaced. On any failure the old clone is left untouched.
 7. Refreshes Launch Services and the Dock.
+
+## Known limitations
+
+- Claude Code also loads `<dir>/.claude/CLAUDE.md` of parent folders as project memory, so for projects inside your home folder `~/.claude/CLAUDE.md` is still loaded in a clone with its own settings folder.
+- claude.ai connectors belong to the account. Configure them per account on claude.ai.
+- `git` and `gh` credentials are system-wide, so both copies use the same ones.
+- Existing session history is not copied.
 
 ## After a Claude update
 
