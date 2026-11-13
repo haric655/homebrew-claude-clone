@@ -2,7 +2,7 @@ class ClaudeClone < Formula
   desc "Create an isolated second copy of Claude Desktop with a separate account"
   homepage "https://github.com/haric655/homebrew-claude-clone"
   url "https://github.com/haric655/homebrew-claude-clone/archive/refs/tags/v1.2.0.tar.gz"
-  sha256 ""
+  sha256 "decf30b96db6324c4bba6f85635e1c656713a517f5c6ff1cd23b9e5c881f1ab1"
   license "MIT"
   head "https://github.com/haric655/homebrew-claude-clone.git", branch: "main"
 
