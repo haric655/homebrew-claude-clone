@@ -50,9 +50,10 @@ Interactive:
 
 ```text
 $ claude-clone
-[1/3] App name [Claude Personal]:
-[2/3] Icon label [Personal] (- keeps the original icon):
-[3/3] Badge color (hex) [#1F2937]:
+[1/4] App name [Claude Personal]:
+[2/4] Icon label [Personal] (- keeps the original icon):
+[3/4] Badge color (hex) [#1F2937]:
+[4/4] Claude Code settings folder [~/.claude-personal] (- shares ~/.claude):
 ```
 
 A summary is shown, then `Continue? [y/N]` asks for confirmation.
@@ -74,11 +75,14 @@ claude-clone --name "Claude Work" --label - --yes
 | `--name NAME` | App name | `Claude Personal` |
 | `--label LABEL` | Icon label (`-` keeps the original icon) | name without "Claude" |
 | `--color HEX` | Badge color, with or without `#` | `#1F2937` |
+| `--config-dir PATH` | Folder for Claude Code settings (`CLAUDE_CONFIG_DIR`): `~/...` or an absolute path; `-` shares `~/.claude` | `~/.claude-<name>` |
 | `--source PATH` | App to copy | `/Applications/Claude.app` |
-| `--update` | Rebuild existing clones from the current Claude.app, keeping their label, color and data; with `--name`, only that clone | |
+| `--update` | Rebuild existing clones from the current Claude.app, keeping their label, color, settings folder and data; with `--name`, only that clone | |
 | `--yes` | Skip the confirmation | |
 | `--version` | Print the version | |
 | `--help` | Show help | |
+
+The last question sets where the clone keeps Claude Code settings (`CLAUDE_CONFIG_DIR`). The default is `~/.claude-<name>` (`~/.claude-personal` for “Claude Personal”), which starts empty; answer `-` to keep sharing `~/.claude`. Without a separate folder both accounts share MCP servers, plugins, memory and history. The choice is stored in `Info.plist` (`ClaudeCloneConfigDir`) and reused by `--update`; clones built before this option keep sharing `~/.claude` unless `~/.claude-<name>` already exists.
 
 The slug is the name with spaces turned into hyphens and anything outside `[A-Za-z0-9-]` removed (`Claude Test` becomes `Claude-Test`).
 

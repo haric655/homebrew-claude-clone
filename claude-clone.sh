@@ -1,12 +1,14 @@
 #!/bin/bash
+# shellcheck disable=SC2088 # "~/" is matched and written literally on purpose
 # claude-clone: make a second, isolated copy of Claude Desktop with its own account.
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 SOURCE="/Applications/Claude.app"
 NAME=""
 LABEL=""
 COLOR=""
+CONFIG_DIR=""
 LABEL_SET=0
 YES=0
 UPDATE=0
@@ -28,6 +30,7 @@ Options:
   --name NAME     App name (default: "$DEFAULT_NAME")
   --label LABEL   Icon badge text (default: name without "Claude"; "-" keeps the original icon)
   --color HEX     Badge color, with or without # (default: $DEFAULT_COLOR)
+  --config-dir PATH  Folder for Claude Code settings (CLAUDE_CONFIG_DIR): ~/... or absolute; "-" shares ~/.claude (default: ~/.claude-<name>)
   --source PATH   Claude app to copy (default: $SOURCE)
   --update        Rebuild existing clones from the current Claude.app, keeping their label, color and data; with --name, only that clone
   --yes           Skip the confirmation prompt
@@ -52,6 +55,15 @@ normalise_color() {
   echo "#$c"
 }
 
+# valid_config_dir PATH: "-", ~/..., or absolute; no characters that could break out of the wrapper's double quotes
+valid_config_dir() {
+  case "$1" in
+    *[\"\$\`\\]*|*$'\n'*) return 1 ;;
+    -|"~/"?*|/?*) return 0 ;;
+  esac
+  return 1
+}
+
 plist_set() { # key value
   "$PB" -c "Set :$1 $2" "$PLIST" 2>/dev/null || "$PB" -c "Add :$1 string $2" "$PLIST"
 }
@@ -67,7 +79,7 @@ default_label() {
 
 # init_clone: derive SLUG/TARGET/... from NAME; defaults come from an existing clone's stored settings
 init_clone() {
-  local v
+  local v x
   SLUG=$(echo "$NAME" | tr ' ' '-' | LC_ALL=C tr -cd 'A-Za-z0-9-' | tr -s '-' | sed 's/^-*//;s/-*$//')
   [ -n "$SLUG" ] || die "name must contain ASCII letters or digits"
   TARGET="/Applications/$NAME.app"
@@ -77,6 +89,8 @@ init_clone() {
   [ "$TARGET" != "$SOURCE" ] || die "target equals source"
   DEF_LABEL=$(default_label "$NAME")
   DEF_COLOR="$DEFAULT_COLOR"
+  x=$(echo "${SLUG#Claude-}" | tr '[:upper:]' '[:lower:]')
+  DEF_CONFIG_DIR="~/.claude-$x"
   WAS_CLONE=0
   KEEP_ICNS=""
   case "$(plist_get "$TARGET" CFBundleIdentifier)" in
@@ -87,6 +101,9 @@ init_clone() {
       elif [ "$UPDATE" -eq 1 ]; then # v1.0.0 clone: label/color unknown, keep its icon as is
         if [ -f "$TARGET/Contents/Resources/claude-clone.icns" ]; then KEEP_ICNS="$TARGET/Contents/Resources/claude-clone.icns"; else DEF_LABEL="-"; fi
       fi
+      v=$(plist_get "$TARGET" ClaudeCloneConfigDir)
+      # old clone without the key: keep sharing ~/.claude unless the old opt-in folder exists
+      if [ -n "$v" ]; then DEF_CONFIG_DIR="$v"; elif [ ! -d "$HOME/.claude-$x" ]; then DEF_CONFIG_DIR="-"; fi
       if v=$(normalise_color "$(plist_get "$TARGET" ClaudeCloneColor)"); then DEF_COLOR="$v"; fi ;;
   esac
 }
@@ -95,12 +112,13 @@ init_clone() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --name|--label|--color|--source)
+    --name|--label|--color|--config-dir|--source)
       [ $# -ge 2 ] || { echo "error: $1 needs a value" >&2; usage >&2; exit 2; }
       case "$1" in
         --name) NAME="$2" ;;
         --label) LABEL="$2"; LABEL_SET=1 ;;
         --color) COLOR="$2" ;;
+        --config-dir) CONFIG_DIR="$2" ;;
         --source) SOURCE="$2" ;;
       esac
       shift 2 ;;
@@ -113,11 +131,14 @@ while [ $# -gt 0 ]; do
 done
 
 # Validate flag values before asking anything
-if [ "$UPDATE" -eq 1 ] && { [ "$LABEL_SET" -eq 1 ] || [ -n "$COLOR" ]; }; then
-  echo "error: --label and --color cannot be used with --update" >&2; usage >&2; exit 2
+if [ "$UPDATE" -eq 1 ] && { [ "$LABEL_SET" -eq 1 ] || [ -n "$COLOR" ] || [ -n "$CONFIG_DIR" ]; }; then
+  echo "error: --label, --color and --config-dir cannot be used with --update" >&2; usage >&2; exit 2
 fi
 if [ -n "$COLOR" ]; then
   COLOR=$(normalise_color "$COLOR") || die "color must be 6 hex digits, e.g. #1F2937"
+fi
+if [ -n "$CONFIG_DIR" ]; then
+  valid_config_dir "$CONFIG_DIR" || die '--config-dir must be "-", ~/..., or an absolute path without " $ ` \ or newlines'
 fi
 SOURCE="${SOURCE%/}"
 
@@ -145,6 +166,7 @@ if [ "$UPDATE" -eq 0 ] || [ -n "$(plist_get "$TARGET" ClaudeCloneLabel)" ]; then
   plist_set ClaudeCloneLabel "$LABEL"
   plist_set ClaudeCloneColor "$COLOR"
 fi
+plist_set ClaudeCloneConfigDir "$CONFIG_DIR"
 
 if [ -n "$KEEP_ICNS" ]; then
   log "Keeping existing icon"
@@ -212,9 +234,15 @@ fi
 log "Installing executable wrapper"
 EXE=$("$PB" -c "Print :CFBundleExecutable" "$PLIST")
 mv "$NEW/Contents/MacOS/$EXE" "$NEW/Contents/MacOS/$EXE.real"
+CFG_LINE=""
+if [ "$CONFIG_DIR" != "-" ]; then
+  p="$CONFIG_DIR"
+  [[ "$p" != "~/"* ]] || p="\$HOME/${p#"~/"}" # expands at runtime, not now
+  CFG_LINE="export CLAUDE_CONFIG_DIR=\"$p\""$'\n'
+fi
 cat > "$NEW/Contents/MacOS/$EXE" <<WRAP
 #!/bin/zsh
-exec "\${0:A:h}/$EXE.real" --user-data-dir="\$HOME/Library/Application Support/$SLUG" "\$@"
+${CFG_LINE}exec "\${0:A:h}/$EXE.real" --user-data-dir="\$HOME/Library/Application Support/$SLUG" "\$@"
 WRAP
 chmod 755 "$NEW/Contents/MacOS/$EXE"
 
@@ -285,6 +313,7 @@ if [ "$UPDATE" -eq 1 ]; then
     init_clone
     LABEL="$DEF_LABEL"
     COLOR="$DEF_COLOR"
+    CONFIG_DIR="$DEF_CONFIG_DIR"
     build_clone
   done 3<<<"$LIST"
   echo
@@ -293,26 +322,34 @@ if [ "$UPDATE" -eq 1 ]; then
 fi
 
 if [ -z "$NAME" ]; then
-  ask "[1/3] App name [$DEFAULT_NAME]: " "$DEFAULT_NAME"
+  ask "[1/4] App name [$DEFAULT_NAME]: " "$DEFAULT_NAME"
   NAME="$REPLY"
 fi
 case "$NAME" in */*|*:*) die "name must not contain / or :" ;; esac
 init_clone
 
 if [ "$LABEL_SET" -eq 0 ]; then
-  ask "[2/3] Icon label [$DEF_LABEL] (- keeps the original icon): " "$DEF_LABEL"
+  ask "[2/4] Icon label [$DEF_LABEL] (- keeps the original icon): " "$DEF_LABEL"
   LABEL="$REPLY"
 fi
 [ -n "$LABEL" ] || LABEL="-"
 
 if [ "$LABEL" != "-" ] && [ -z "$COLOR" ]; then
   while :; do
-    ask "[3/3] Badge color (hex) [$DEF_COLOR]: " "$DEF_COLOR"
+    ask "[3/4] Badge color (hex) [$DEF_COLOR]: " "$DEF_COLOR"
     if COLOR=$(normalise_color "$REPLY"); then break; fi
     echo "Invalid color, expected 6 hex digits." >&2
   done
 fi
 [ -n "$COLOR" ] || COLOR="$DEF_COLOR"
+
+if [ -z "$CONFIG_DIR" ]; then
+  while :; do
+    ask "[4/4] Claude Code settings folder [$DEF_CONFIG_DIR] (- shares ~/.claude): " "$DEF_CONFIG_DIR"
+    if valid_config_dir "$REPLY"; then CONFIG_DIR="$REPLY"; break; fi
+    echo 'Invalid folder, expected "-", ~/..., or an absolute path without " $ ` \ or newlines.' >&2
+  done
+fi
 
 echo "App:       $TARGET"
 echo "Bundle ID: $BUNDLE_ID"
@@ -323,6 +360,7 @@ else
   echo "Label:     $LABEL"
   echo "Color:     $COLOR"
 fi
+if [ "$CONFIG_DIR" = "-" ]; then echo "Config:    ~/.claude (shared)"; else echo "Config:    $CONFIG_DIR"; fi
 if [ "$YES" -eq 0 ]; then
   read -r -p "Continue? [y/N] " REPLY || REPLY=""
   case "$REPLY" in y|Y|yes) ;; *) echo "Aborted."; exit 1 ;; esac
@@ -334,6 +372,7 @@ build_clone
 
 echo
 echo "Data folder: $DATA_DIR (created by Claude on first launch)"
+[ "$CONFIG_DIR" = "-" ] || echo "Claude Code settings: $CONFIG_DIR starts empty; link shared files if you want, e.g. ln -s ~/.claude/CLAUDE.md ~/.claude/skills $CONFIG_DIR/"
 echo "On first sign-in, close the original Claude: the claude:// login link opens whichever Claude is running."
 echo "After a Claude update, run: claude-clone --update"
 if [ "$WAS_CLONE" -eq 1 ]; then echo "$KEYCHAIN_NOTE"; fi
